@@ -7,7 +7,6 @@
         <h1>Ai Assistant with LangChain</h1>
 
         <div id="chat">
-
         </div>
 
         <form id="chat-form" method="POST">
@@ -28,18 +27,35 @@
         const CHAT_ENDPOINT = 'http://' + document.domain + ':' + location.port;
         const chatForm = document.querySelector("#chat-form");
         const messages = [];
+        const user = {
+            id: '123',
+            username: 'Guest'
+        };
 
         const socket = io(CHAT_ENDPOINT);
         socket.on('connect', () => {
             socket.emit('connected', {
-                data: {
-                    id: '123',
-                    username: 'Guest'
-                }
+                data: { ...user }
             });
         
             chatForm.addEventListener('submit', handleUserMessage)
         });
+
+        function pushMessage(message) {
+            const messageComponent = document
+                .querySelector("#message-template-component")
+                .cloneNode(true);
+            
+            messageComponent.querySelector("#name").innerText = message?.name;
+            messageComponent.querySelector("#content").innerText = message?.message;
+            messageComponent.querySelector("#timestamp").innerText = message?.timestamp;
+            messageComponent.classList.toggle('self', message?.name === user.username)
+            messageComponent.classList.toggle('assistant', message?.name !== user.username)
+            messageComponent.hidden = false;
+            
+            document.querySelector("#chat").appendChild(messageComponent);
+            messages.push(message);
+        }
 
         function handleUserMessage(event) {
             event.preventDefault();
@@ -48,6 +64,7 @@
             const payload = { data: message.value };
             socket.emit('message', payload, (res) => {
                 console.log(res);
+                pushMessage(res);
             });
 
             message.value = '';
