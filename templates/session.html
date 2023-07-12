@@ -4,13 +4,54 @@
 </head>
 <body>
     <main>
-        <p>Hello</p>
+        <h1>Ai Assistant with LangChain</h1>
 
-        <form action="" method="POST">
-            <input type="text" class="username" placeholder="User Name"/>
-            <input type="text" class="message" placeholder="Messages"/>
+        <div id="chat">
+
+        </div>
+
+        <form id="chat-form" method="POST">
+            <input type="text" id="message" placeholder="Messages"/>
             <input type="submit"/>
         </form>
+
+        <div id="message-template-component" hidden>
+            <span id="name"></span>
+            <p id="content"></p>
+            <span id="timestamp"></span>
+        </div>
     </main>
+
+    <script type="module">
+        import { io } from "https://cdn.socket.io/4.4.1/socket.io.esm.min.js";
+      
+        const CHAT_ENDPOINT = 'http://' + document.domain + ':' + location.port;
+        const chatForm = document.querySelector("#chat-form");
+        const messages = [];
+
+        const socket = io(CHAT_ENDPOINT);
+        socket.on('connect', () => {
+            socket.emit('connected', {
+                data: {
+                    id: '123',
+                    username: 'Guest'
+                }
+            });
+        
+            chatForm.addEventListener('submit', handleUserMessage)
+        });
+
+        function handleUserMessage(event) {
+            event.preventDefault();
+
+            const message = chatForm.querySelector("input");
+            const payload = { data: message.value };
+            socket.emit('message', payload, (res) => {
+                console.log(res);
+            });
+
+            message.value = '';
+        }
+      </script>
 </body>
 </html>
