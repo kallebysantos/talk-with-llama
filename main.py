@@ -46,7 +46,7 @@ def handle_my_custom_event(json, methods=['GET', 'POST']):
 def handle_my_custom_event(json, methods=['GET', 'POST']):
     message = json["data"]
 
-    processPrompt(message)
+    socket_io.start_background_task(processPrompt, message)
 
     return {
         'name': session["user"],
