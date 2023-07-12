@@ -41,6 +41,8 @@
             chatForm.addEventListener('submit', handleUserMessage)
         });
 
+        socket.on('response', pushMessage)
+
         function pushMessage(message) {
             const messageComponent = document
                 .querySelector("#message-template-component")
