@@ -1,3 +1,4 @@
 .vscode
 .venv
 models
+__pycache__

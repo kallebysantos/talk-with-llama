@@ -1,14 +1,13 @@
 import sys
 import datetime
-import time
-
-from celery import Celery, Task
-from flask import Flask, Response, stream_with_context, render_template, request, session
+from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi.responses import HTMLResponse 
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+from sse_starlette.sse import EventSourceResponse
 
 from langchain.llms import LlamaCpp
 from langchain import PromptTemplate, LLMChain
-from langchain.callbacks.manager import CallbackManager
-from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 from src.streaming_web import StreamingWebCallbackHandler
 
@@ -26,11 +25,12 @@ llm = LlamaCpp(model_path="./models/OpenLLaMA_3B.ggmlv1.q4_0.bin", callbacks=[st
 
 llm_chain = LLMChain(prompt=prompt, llm=llm)
 
-app = Flask(__name__)
+app = FastAPI()
+
+templates = Jinja2Templates(directory="templates")
 
 @app.get('/response')
-def streamed_response():
-    @stream_with_context
+async def streamed_response():
     def generate():
         while True:
             while stream_handler.is_responding & len(stream_handler.tokens) > 0:
@@ -38,33 +38,28 @@ def streamed_response():
                 sys.stdout.write(token)
                 sys.stdout.flush()
 
-                yield f'event: assistant-response\nid: 0\ndata: {token}\n\n'
+                yield {
+                    "event": "assistant-response",
+                    "id": stream_handler.response_id,
+                    "data": token
+                }
 
+    return EventSourceResponse(generate())
 
-    return Response(generate(), mimetype='text/event-stream')
-
-
+class Message(BaseModel):
+    data: str
+    
 @app.post('/message')
-def handle_message():
-    message = request.json["data"]
+async def handle_message(message: Message, tasks: BackgroundTasks):
 
-    llm_chain.run(message)
-
-    # socket_io.start_background_task(llm_chain.run, message)
+    tasks.add_task(llm_chain.run, message.data)
 
     return {
-        'name': session["user"],
-        'message': message,
+        'name': 'Guest',
+        'message': message.data,
         'timestamp': datetime.datetime.now().strftime('%m/%d/%Y, %H:%M:%S')
     }
 
-@app.route('/')
-def sessions():
-    return render_template('session.html')
-
-if __name__ == '__main__':
-    app.run(
-        port=7860,
-        threaded=True,
-        debug=True
-    )
+@app.get('/', response_class=HTMLResponse)
+async def chat_ui(req: Request):
+    return templates.TemplateResponse('chat_ui.html', { "request": req })
