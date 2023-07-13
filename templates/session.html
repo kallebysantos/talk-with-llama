@@ -2,16 +2,19 @@
 <head>
     <title>Session</title>
 </head>
-<body>
+<body style="background-color: rgb(36, 34, 45); color: azure;">
     <main>
         <h1>Ai Assistant with LangChain</h1>
 
-        <div id="chat">
+        <div id="chat" style="height: 70vh; overflow-y: auto;">
         </div>
 
-        <form id="chat-form" method="POST">
-            <input type="text" id="message" placeholder="Messages"/>
-            <input type="submit"/>
+        <form id="chat-form" method="POST" style="display: flex; flex-direction: column; align-items: start;">
+            <label for="message">Type your question here:</label>
+            <textarea type="text" id="message" placeholder="How can I help you?" rows="4" style="width: 250px;"></textarea>
+            <div>
+                <input type="submit"/>
+            </div>
         </form>
 
         <div id="message-template-component" hidden>
@@ -22,55 +25,75 @@
     </main>
 
     <script type="module">
-        import { io } from "https://cdn.socket.io/4.4.1/socket.io.esm.min.js";
-      
-        const CHAT_ENDPOINT = 'http://' + document.domain + ':' + location.port;
+        const responseEventSource = new EventSource('/response');
         const chatForm = document.querySelector("#chat-form");
+
         const messages = [];
+
         const user = {
             id: '123',
             username: 'Guest'
         };
-
-        const socket = io(CHAT_ENDPOINT);
-        socket.on('connect', () => {
-            socket.emit('connected', {
-                data: { ...user }
-            });
+      
+        chatForm.addEventListener('submit', handleUserMessage)
         
-            chatForm.addEventListener('submit', handleUserMessage)
-        });
+        responseEventSource.addEventListener('assistant-response', handleAssistantMessage)
 
-        socket.on('response', pushMessage)
+       
+        function handleUserMessage(event) {
+            event.preventDefault();
+
+            const message = chatForm.querySelector("textarea");
+            const payload = { data: message.value };
+
+            fetch('/message', {
+                method: 'POST',
+                body: JSON.stringify(payload),
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            })
+            .then(res => res.json())
+            .then(data => pushMessage(data));
+
+            message.value = '';
+        }
+
+        function handleAssistantMessage(event) {
+            console.log(event)
+            event.id = '123'
+
+            const isNewMessage = !messages.some(msg => msg.id === event.id);
+            
+            if(isNewMessage) {
+                pushMessage({
+                    id: event.id,
+                    name: 'assistant',
+                })
+            }
+
+            const messageComponent = document.querySelector(`#message-${event.id}`);
+            messageComponent.querySelector("#content").innerText += event.data;
+        }
 
         function pushMessage(message) {
             const messageComponent = document
                 .querySelector("#message-template-component")
                 .cloneNode(true);
             
+            messageComponent.id = `message-${message.id}`;
             messageComponent.querySelector("#name").innerText = message?.name;
-            messageComponent.querySelector("#content").innerText = message?.message;
+            messageComponent.querySelector("#content").innerText = message?.message ?? '';
             messageComponent.querySelector("#timestamp").innerText = message?.timestamp;
-            messageComponent.classList.toggle('self', message?.name === user.username)
-            messageComponent.classList.toggle('assistant', message?.name !== user.username)
+
+            messageComponent.classList.toggle('self', message?.name === user.username);
+            messageComponent.classList.toggle('assistant', message?.name !== user.username);
             messageComponent.hidden = false;
             
             document.querySelector("#chat").appendChild(messageComponent);
             messages.push(message);
         }
-
-        function handleUserMessage(event) {
-            event.preventDefault();
-
-            const message = chatForm.querySelector("input");
-            const payload = { data: message.value };
-            socket.emit('message', payload, (res) => {
-                console.log(res);
-                pushMessage(res);
-            });
-
-            message.value = '';
-        }
+        
       </script>
 </body>
 </html>

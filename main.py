@@ -1,11 +1,19 @@
+import sys
 import datetime
-from flask import Flask, render_template, session
-from flask_socketio import SocketIO
+import time
+
+from celery import Celery, Task
+from flask import Flask, Response, stream_with_context, render_template, request, session
 
 from langchain.llms import LlamaCpp
 from langchain import PromptTemplate, LLMChain
 from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+
+from src.streaming_web import StreamingWebCallbackHandler
+
+global stream_handler 
+stream_handler = StreamingWebCallbackHandler()
 
 template = """Question: {question}
 
@@ -13,40 +21,36 @@ Answer: Let's work this out in a step by step way to be sure we have the right a
 
 prompt = PromptTemplate(template=template, input_variables=["question"])
 
-# Callbacks support token-wise streaming
-callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
-# Verbose is required to pass to the callback manager
-
 # Make sure the model path is correct for your system!
-llm = LlamaCpp(
-    model_path="./models/OpenLLaMA_3B.ggmlv1.q4_0.bin", callback_manager=callback_manager, verbose=True
-)
+llm = LlamaCpp(model_path="./models/OpenLLaMA_3B.ggmlv1.q4_0.bin", callbacks=[stream_handler], verbose=True)
 
 llm_chain = LLMChain(prompt=prompt, llm=llm)
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'vnkdjnfjknfl1232#'
 
-socket_io = SocketIO(app)
+@app.get('/response')
+def streamed_response():
+    @stream_with_context
+    def generate():
+        while True:
+            while stream_handler.is_responding & len(stream_handler.tokens) > 0:
+                token = stream_handler.tokens.pop(0)
+                sys.stdout.write(token)
+                sys.stdout.flush()
 
-def processPrompt(prompt: str):
-    socket_io.emit('response', {
-        'name': 'Assistant',
-        'message': llm_chain.run(prompt),
-        'timestamp': datetime.datetime.now().strftime('%m/%d/%Y, %H:%M:%S')
-    })
+                yield f'event: assistant-response\nid: 0\ndata: {token}\n\n'
 
-@socket_io.on('connected')
-def handle_my_custom_event(json, methods=['GET', 'POST']):
-    session["user"] = json["data"]["username"]
 
-    print('User connected: ' + session["user"])
+    return Response(generate(), mimetype='text/event-stream')
 
-@socket_io.on('message')
-def handle_my_custom_event(json, methods=['GET', 'POST']):
-    message = json["data"]
 
-    socket_io.start_background_task(processPrompt, message)
+@app.post('/message')
+def handle_message():
+    message = request.json["data"]
+
+    llm_chain.run(message)
+
+    # socket_io.start_background_task(llm_chain.run, message)
 
     return {
         'name': session["user"],
@@ -56,8 +60,11 @@ def handle_my_custom_event(json, methods=['GET', 'POST']):
 
 @app.route('/')
 def sessions():
-    print('message was received!!!')
     return render_template('session.html')
 
 if __name__ == '__main__':
-    socket_io.run(app, port=7860, debug=True)
+    app.run(
+        port=7860,
+        threaded=True,
+        debug=True
+    )
