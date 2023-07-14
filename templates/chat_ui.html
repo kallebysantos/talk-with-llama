@@ -1,50 +1,83 @@
 <html>
 <head>
-    <title>AI CHAT</title>
+    <title>Talk with LLaMA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body style="background-color: rgb(36, 34, 45); color: azure;">
-    <main>
-        <h1>Ai Assistant with LangChain</h1>
+<style>
+    @layer utilities {
+    .scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
 
-        <div id="chat" style="height: 70vh; overflow-y: auto;">
-        </div>
+    .scrollbar::-webkit-scrollbar-track {
+        border-radius: 0.25rem /* 4px */;
+        background: rgb(238 242 255 / 0.2);
+    }
 
-        <form id="chat-form" method="POST" style="display: flex; flex-direction: column; align-items: start;">
-            <label for="message">Type your question here:</label>
-            <textarea type="text" id="message" placeholder="How can I help you?" rows="4" style="width: 250px;"></textarea>
-            <div>
-                <input type="submit"/>
-            </div>
-        </form>
+    .scrollbar::-webkit-scrollbar-thumb {
+        background: rgb(99 102 241 / .5);
+        border-radius: 0.55rem/* 4px */;
+    }
 
-        <div id="message-template-component" hidden>
-            <span id="name"></span>
-            <p id="content"></p>
-            <span id="timestamp"></span>
-        </div>
-    </main>
+    .scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgb(99 102 241 / 1);
+    }
+    }
+</style>
+
+<body class="bg-indigo-950 text-white w-full h-full py-6 flex flex-col items-center">
+    <div class="bg-indigo-50/5 backdrop-blur-sm rounded-xl px-8 pt-6 pb-2 w-9/12 flex flex-1 gap-6 flex-col items-center justify-between">
+        <header>
+            <h1 class="text-2xl leading-relaxed">
+                Talk with
+                <span class="font-bold">LLaMA 🦙🔗</span>
+            </h1>
+        </header>
+        <main id="chat" class="h-96 flex flex-col gap-4 w-full rounded-xl p-2 bg-indigo-950/30 overflow-y-auto scrollbar">           
+        </main>
+    
+        <footer class="w-full">
+            <form id="chat-form" method="POST">
+                <fieldset class="flex w-full items-end gap-4">
+                    <label class="flex flex-col gap-2">
+                        <span class="text-sm">Username:</span>
+                        <input type="text" id="username" class="w-full p-2 rounded text-gray-950" placeholder="Joe" required  />
+                    </label>
+        
+                    <label class="flex flex-1 flex-col gap-2">
+                        <span class="text-sm">Type your question here:</span>
+                        <textarea type="text" id="message" class="w-full p-2 rounded text-gray-950" placeholder="How can I help you?" required rows="1" ></textarea>
+                    </label>
+                    
+                    <button class="p-2 rounded cursor-pointer text-indigo-50 bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-50/30 disabled:cursor-not-allowed" type="submit">Send</button>
+                </fieldset>
+            </form>
+        </footer>
+    </div>
+
+    <div id="message-template-component" class="flex flex-col p-2 rounded max-w-lg" hidden>
+        <span id="name" class="font-bold"></span>
+        <p id="content"></p>
+        <span id="timestamp" class="text-xs font-semibold self-end"></span>
+    </div>
 
     <script type="module">
-        const responseEventSource = new EventSource('/response');
         const chatForm = document.querySelector("#chat-form");
-
         const messages = [];
 
-        const user = {
-            id: '123',
-            username: 'Guest'
-        };
-      
-        chatForm.addEventListener('submit', handleUserMessage)
+        let responseEventSource = null;
+        let user_id = '';
+        let username = '';
         
-        responseEventSource.addEventListener('assistant-response', handleAssistantMessage)
+        chatForm.addEventListener('submit', handleUserMessage)
+        chatForm.querySelector("input").addEventListener('change', (ev) => username = ev.target.value)
+        
 
-       
         function handleUserMessage(event) {
             event.preventDefault();
 
             const message = chatForm.querySelector("textarea");
-            const payload = { data: message.value };
+            const payload = { username, data: message.value };
 
             fetch('/message', {
                 method: 'POST',
@@ -54,14 +87,25 @@
                 }
             })
             .then(res => res.json())
-            .then(data => pushMessage(data));
+            .then(data => {
+                if(!user_id || !responseEventSource) {
+                    responseEventSource = new EventSource(`/response/${data.id}`);
+                    responseEventSource.addEventListener('assistant-responding', handleAssistantMessage)
+                    responseEventSource.addEventListener('assistant-waiting', () => setChatEnabled(true))
+                }
 
-            message.value = '';
+                pushMessage(data)
+
+                message.value = '';
+            });
+        }
+
+        function setChatEnabled(value) {
+            document.querySelector('#chat-form > fieldset').disabled = !value;
         }
 
         function handleAssistantMessage(event) {
-            console.log(event)
-
+            setChatEnabled(false)
             const isNewMessage = !messages.some(msg => msg.id === event.lastEventId);
             
             if(isNewMessage) {
@@ -73,26 +117,38 @@
 
             const messageComponent = document.querySelector(`#message-${event.lastEventId}`);
             messageComponent.querySelector("#content").innerText += event.data;
+
+            document.querySelector("#chat").scrollTo({top: messageComponent.scrollHeight, behavior:"smooth"})
         }
 
         function pushMessage(message) {
             const messageComponent = document
                 .querySelector("#message-template-component")
                 .cloneNode(true);
+
+            const parsedTimestamp = new Date(message?.timestamp || Date.now()).toLocaleString("pt-BR",{ timeStyle: "short"});
             
             messageComponent.id = `message-${message.id}`;
             messageComponent.querySelector("#name").innerText = message?.name;
             messageComponent.querySelector("#content").innerText = message?.message ?? '';
-            messageComponent.querySelector("#timestamp").innerText = message?.timestamp;
+            messageComponent.querySelector("#timestamp").innerText = parsedTimestamp;
 
-            messageComponent.classList.toggle('self', message?.name === user.username);
-            messageComponent.classList.toggle('assistant', message?.name !== user.username);
+            const isAssistant = message?.name !== username;
+
+            messageComponent.classList.toggle('bg-violet-500', isAssistant);
+            messageComponent.classList.toggle('bg-indigo-500', !isAssistant);
+            
+            messageComponent.classList.toggle('self-start', isAssistant);
+            messageComponent.classList.toggle('self-end', !isAssistant);
+
             messageComponent.hidden = false;
             
-            document.querySelector("#chat").appendChild(messageComponent);
+            const chatContainer = document.querySelector("#chat");
+            chatContainer.appendChild(messageComponent);
+            chatContainer.scrollTo({top: chatContainer.scrollHeight, behavior:"smooth"})
             messages.push(message);
         }
         
-      </script>
+    </script>
 </body>
 </html>
