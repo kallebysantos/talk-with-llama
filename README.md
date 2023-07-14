@@ -7,3 +7,9 @@
 <p align="center">
   <i>"A simple AI chat using FastAPI, Langchain and llama.cpp"</i>
 </p>
+
+---
+
+<p align="center">
+  <img src = "https://github.com/kallebysantos/chat-with-llama/assets/105971119/a2157629-3fae-48ca-a289-c4c71355abe9">
+</p>
