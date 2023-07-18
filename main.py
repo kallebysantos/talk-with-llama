@@ -1,7 +1,5 @@
-import hashlib
 import sys
 import datetime
-from typing import Dict, List
 
 from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, Request, Response
@@ -10,54 +8,29 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from langchain import PromptTemplate, LLMChain
-from langchain.llms import LlamaCpp
-from langchain.schema.language_model import BaseLanguageModel
+from src.assistant import Assistant, StreamingWebCallbackHandler
 
-from src.streaming_web import StreamingWebCallbackHandler
-
-ml_model: BaseLanguageModel
-ml_chains: Dict[str, LLMChain] = {}
-stream_handler = StreamingWebCallbackHandler()  
+assistant: Assistant
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    global ml_model, ml_chains
-    ml_model = get_model()
+    global assistant
+    assistant = Assistant("./models/OpenLLaMA_3B.ggmlv1.q4_0.bin")
         
     yield
 
-    ml_chains.clear()
+    assistant.chains.clear()
 
 templates = Jinja2Templates(directory="templates")
 app = FastAPI(lifespan=lifespan)
 
-def get_model():
-    #Make sure the model path is correct for your system!
-    return LlamaCpp(
-        model_path="./models/OpenLLaMA_3B.ggmlv1.q4_0.bin", 
-        callbacks=[stream_handler], 
-        verbose=True
-    )
-
-
-def get_new_chain():
-    template = """Question: {question}
-
-    Answer: Let's work this out in a step by step way to be sure we have the right answer."""
-
-    prompt = PromptTemplate(template=template, input_variables=["question"])
-    return LLMChain(prompt=prompt, llm=ml_model, callbacks=[stream_handler])
-
 @app.get('/response/{user_id}')
 async def streamed_response(user_id: str):
-    print(ml_chains, user_id)
-
-    user_chain = ml_chains.get(user_id)
-    if user_chain is None or len(user_chain.callbacks) <= 0:
+    chain = assistant.get_chain(user_id)
+    if chain is None or len(chain.callbacks) <= 0:
         return Response(status_code=422)
 
-    handler = user_chain.callbacks[0]
+    handler: StreamingWebCallbackHandler = chain.callbacks[0]
 
     def generate():
         while True:
@@ -87,15 +60,14 @@ class Message(BaseModel):
     
 @app.post('/message')
 async def handle_message(message: Message, tasks: BackgroundTasks):
-    global ml_chains
+    global assistant
 
-    user_id = hashlib.sha256(str.encode(message.username)).hexdigest()
-    ml_chains[user_id] = get_new_chain()
+    chain, chain_hash = assistant.add_chain(message.username)
 
-    tasks.add_task(ml_chains[user_id].run, message.data)
+    tasks.add_task(chain.run, message.data)
 
     return {
-        'id': str(user_id),
+        'id': str(chain_hash),
         'name': message.username,
         'message': message.data,
         'timestamp': datetime.datetime.now().strftime('%m/%d/%Y, %H:%M:%S')

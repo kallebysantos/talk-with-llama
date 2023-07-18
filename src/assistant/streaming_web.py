@@ -6,7 +6,7 @@ from langchain.schema.output import LLMResult
 class StreamingWebCallbackHandler(BaseCallbackHandler):
     tokens: List[str] = []
     is_responding: bool = False
-    response_id: UUID
+    response_id: str
     
     def on_llm_new_token(self, token: str, *, run_id: UUID, parent_run_id: UUID | None = None, **kwargs: Any) -> Any:
         """Run on new LLM token. Only available when streaming is enabled."""

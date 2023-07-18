@@ -111,14 +111,15 @@
             if(isNewMessage) {
                 pushMessage({
                     id: event.lastEventId,
-                    name: 'assistant',
+                    name: 'llama',
                 })
             }
 
             const messageComponent = document.querySelector(`#message-${event.lastEventId}`);
             messageComponent.querySelector("#content").innerText += event.data;
 
-            document.querySelector("#chat").scrollTo({top: messageComponent.scrollHeight, behavior:"smooth"})
+            const chatContainer = document.querySelector("#chat");
+            chatContainer.scrollTo({top: chatContainer.scrollHeight + messageComponent.scrollHeight, behavior:"smooth"})
         }
 
         function pushMessage(message) {
@@ -145,7 +146,7 @@
             
             const chatContainer = document.querySelector("#chat");
             chatContainer.appendChild(messageComponent);
-            chatContainer.scrollTo({top: chatContainer.scrollHeight, behavior:"smooth"})
+            chatContainer.scrollTo({top: chatContainer.scrollHeight + messageComponent.scrollHeight, behavior:"smooth"})
             messages.push(message);
         }
         
