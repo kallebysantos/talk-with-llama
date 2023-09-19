@@ -11,5 +11,7 @@
 ---
 
 <p align="center">
-  <img src = "https://github.com/kallebysantos/chat-with-llama/assets/105971119/a2157629-3fae-48ca-a289-c4c71355abe9">
+
+https://github.com/kallebysantos/talk-with-llama/assets/105971119/571984a0-0e36-44e1-9c02-07be2bda9dc4
+
 </p>
