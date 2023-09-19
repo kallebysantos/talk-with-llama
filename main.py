@@ -8,14 +8,14 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from src.assistant import Assistant, StreamingWebCallbackHandler
-from src.assistant.chains.chat_instruction import ChatInstruction
+from src.assistant.chains.chat import Chat
 
 assistant: Assistant
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global assistant
-    assistant = ChatInstruction("./models/OpenLLaMA_3B.ggmlv1.q4_0.bin")
+    assistant = Chat("./models/llama-2-7b-chat.ggmlv3.q2_K.bin")
         
     yield
 
