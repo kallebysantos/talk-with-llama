@@ -91,10 +91,12 @@
                 if(!user_id || !responseEventSource) {
                     responseEventSource = new EventSource(`/response/${data.id}`);
                     responseEventSource.addEventListener('assistant-responding', handleAssistantMessage)
+                    responseEventSource.addEventListener('assistant-response', (e) => handleAssistantMessage(e, false))
                     responseEventSource.addEventListener('assistant-waiting', () => setChatEnabled(true))
                 }
 
                 pushMessage(data)
+                setChatEnabled(false)
 
                 message.value = '';
             });
@@ -104,7 +106,7 @@
             document.querySelector('#chat-form > fieldset').disabled = !value;
         }
 
-        function handleAssistantMessage(event) {
+        function handleAssistantMessage(event, shouldConcatenate = true) {
             setChatEnabled(false)
             const isNewMessage = !messages.some(msg => msg.id === event.lastEventId);
             
@@ -116,12 +118,15 @@
             }
 
             const messageComponent = document.querySelector(`#message-${event.lastEventId}`);
-            messageComponent.querySelector("#content").innerText += event.data;
+            const currentText = messageComponent.querySelector("#content").innerText;
+            messageComponent.querySelector("#content").innerText = shouldConcatenate 
+                ? currentText + event.data
+                : event.data;
 
             const chatContainer = document.querySelector("#chat");
             chatContainer.scrollTo({top: chatContainer.scrollHeight + messageComponent.scrollHeight, behavior:"smooth"})
         }
-
+        
         function pushMessage(message) {
             const messageComponent = document
                 .querySelector("#message-template-component")

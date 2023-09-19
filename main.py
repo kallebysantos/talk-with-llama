@@ -1,4 +1,3 @@
-import sys
 import datetime
 
 from contextlib import asynccontextmanager
@@ -35,22 +34,26 @@ async def streamed_response(user_id: str):
 
     def generate():
         while True:
-            while handler.is_responding & len(handler.tokens) > 0:
+            while len(handler.tokens) > 0:
                 token = handler.tokens.pop(0)
-                sys.stdout.write(token)
-                sys.stdout.flush()
 
                 yield {
                     "event": "assistant-responding",
                     "id": handler.response_id,
                     "data": token
                 }
-            
+
             if handler.is_responding == False:
                 yield {
                     "event": "assistant-waiting",
                     "id": handler.response_id,
                     "data": 'waiting'
+                }
+            elif handler.response != None:
+                yield {
+                    "event": "assistant-response",
+                    "id": handler.response_id,
+                    "data": handler.get_response()
                 }
 
     return EventSourceResponse(generate())
