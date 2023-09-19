@@ -1,5 +1,4 @@
 import datetime
-
 from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, FastAPI, Request, Response
 from fastapi.responses import HTMLResponse 
@@ -15,7 +14,7 @@ assistant: Assistant
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     global assistant
-    assistant = Chat("./models/llama-2-7b-chat.ggmlv3.q2_K.bin")
+    assistant = Chat("./models/llama-2-7b-chat.Q4_K_M.gguf")
         
     yield
 

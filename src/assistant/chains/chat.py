@@ -12,6 +12,13 @@ class Chat(Assistant):
             verbose=True,
             model_path=model_path, 
             callbacks=[self.handler],
+            n_gpu_layers=25,
+            n_batch=512,
+            n_ctx=2048,
+            top_k=100,
+            top_p=0.37,
+            temperature=0.98,
+            max_tokens=200,
         )
             
     def new_chain(self):
