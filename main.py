@@ -65,7 +65,10 @@ class Message(BaseModel):
 async def handle_message(message: Message, tasks: BackgroundTasks):
     global assistant
 
-    chain, chain_hash = assistant.add_chain(message.username)
+    chain, chain_hash = assistant.add_chain(
+        key=message.username, 
+        human_prefix=message.username
+    )
 
     tasks.add_task(chain.run, message.data)
 

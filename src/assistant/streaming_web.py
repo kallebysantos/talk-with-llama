@@ -23,6 +23,7 @@ class StreamingWebCallbackHandler(BaseCallbackHandler):
     def on_chain_end(self, outputs: Dict[str, Any], *, run_id: UUID, parent_run_id: UUID | None = None, **kwargs: Any) -> Any:
         self.is_responding = False
         self.response = outputs['response']
+        print("END: "+self.response)
 
     def get_response(self) -> str:
         response_result = self.response
